@@ -36,15 +36,6 @@
       overflow: hidden;
       background: url('KrustyKrab_default.png') center / cover no-repeat;
     }
-    #app.success-bg {
-      background-image: url('KrustyKrab_success.png');
-    }
-    #app.fail-bg {
-      background-image: url('KrustyKrab_fail.png');
-    }
-    #app.lose-bg {
-      background-image: url('KrustyKrab_lose.png');
-    }
 
     /* ── Screens ── */
     .screen {
@@ -112,16 +103,22 @@
       justify-content: flex-end;
     }
 
-    /* ── End Screen overlay (image shows through from #app) ── */
+    /* ── End Screen ── */
+    #end-screen {
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
     #end-screen::before {
       content: '';
       position: absolute;
       inset: 0;
       background: rgba(0, 0, 0, 0.60);
-    }
-    #end-screen > * {
-      position: relative;
       z-index: 1;
+    }
+    #end-screen > *:not(img) {
+      position: relative;
+      z-index: 2;
     }
 
     /* Bottom-half panel that holds all gameplay controls */
@@ -316,6 +313,7 @@
 
   <!-- ── End Screen ── -->
   <div id="end-screen" class="screen hidden">
+    <img id="end-bg-img" src="" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;">
     <h2>Game Over!</h2>
     <div id="final-score">0</div>
     <div id="final-out-of">out of 10,000</div>
@@ -351,8 +349,27 @@
   let responded = false;
   let roundTimeout = null;
   let flashTimeout = null;
+  let bgResetTimer = null;
   let timerAnim = null;
   let timerStart = 0;
+
+  const app = document.getElementById('app');
+
+  const DEFAULT_BG = "url('KrustyKrab_default.png') center / cover no-repeat";
+
+  function setBg(filename, resetAfterMs) {
+    clearTimeout(bgResetTimer);
+    bgResetTimer = null;
+    app.style.background = filename
+      ? `url('${filename}') center / cover no-repeat`
+      : DEFAULT_BG;
+    if (resetAfterMs) {
+      bgResetTimer = setTimeout(() => {
+        app.style.background = DEFAULT_BG;
+        bgResetTimer = null;
+      }, resetAfterMs);
+    }
+  }
 
   function shuffle(arr) {
     const a = [...arr];
@@ -372,7 +389,8 @@
     score = 0;
     round = 0;
     correctCount = 0;
-    document.getElementById('app').classList.remove('lose-bg');
+    setBg(null);
+    document.getElementById('end-bg-img').src = '';
     showScreen('game-screen');
     nextRound();
   }
@@ -451,9 +469,7 @@
       cell.classList.add('state-correct');
       showFeedback(`+${pts}`, 'state-correct');
       vibrate(40);
-      const app = document.getElementById('app');
-      app.classList.add('success-bg');
-      setTimeout(() => app.classList.remove('success-bg'), 500);
+      setBg('KrustyKrab_success.png', 500);
     } else {
       cell.classList.add('state-wrong');
       highlightCorrect();
@@ -472,9 +488,7 @@
     highlightCorrect();
     showFeedback('TOO SLOW', 'state-wrong');
     vibrate([60, 30, 60]);
-    const app = document.getElementById('app');
-    app.classList.add('fail-bg');
-    setTimeout(() => app.classList.remove('fail-bg'), 500);
+    setBg('KrustyKrab_fail.png', 500);
     setTimeout(nextRound, FEEDBACK_MS);
   }
 
@@ -503,7 +517,7 @@
     const pct = Math.round((correctCount / TOTAL_ROUNDS) * 100);
     document.getElementById('final-score').textContent = score.toLocaleString();
     document.getElementById('accuracy').textContent = `${correctCount} / ${TOTAL_ROUNDS} correct  ·  ${pct}%`;
-    document.getElementById('app').classList.add('lose-bg');
+    document.getElementById('end-bg-img').src = correctCount >= TOTAL_ROUNDS ? 'KrustyKrab_win.png' : 'KrustyKrab_lose.png';
     showScreen('end-screen');
   }
 
