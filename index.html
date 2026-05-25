@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Mr. Krabs' Kash Katch</title>
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background: #000;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    #app {
+      /* Fit image (1536×2752) within iPhone 13 screen (390×844).
+         Image at full width = 390×699 — stays within 844px height. */
+      width: min(100vw, 390px, calc(100dvh * (1536 / 2752)));
+      aspect-ratio: 1536 / 2752;
+      position: relative;
+      overflow: hidden;
+      background: url('KrustyKrab_default.png') center / cover no-repeat;
+    }
+    #app.success-bg {
+      background-image: url('KrustyKrab_success.png');
+    }
+    #app.fail-bg {
+      background-image: url('KrustyKrab_fail.png');
+    }
+    #app.lose-bg {
+      background-image: url('KrustyKrab_lose.png');
+    }
+
+    /* ── Screens ── */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 20px;
+      transition: opacity 0.25s ease;
+    }
+    .screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* ── Start Screen ── */
+    #start-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.52);
+    }
+    #start-screen > * {
+      position: relative;
+      z-index: 1;
+    }
+    #start-screen h1 {
+      font-size: clamp(1.4rem, 5.5vw, 2rem);
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    #start-screen .subtitle {
+      color: rgba(255,255,255,0.55);
+      font-size: 1rem;
+      text-align: center;
+      line-height: 1.6;
+      margin-bottom: 48px;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #e94560, #c0284a);
+      border: none;
+      border-radius: 18px;
+      color: #fff;
+      font-size: 1.25rem;
+      font-weight: 800;
+      padding: 18px 52px;
+      cursor: pointer;
+      box-shadow: 0 6px 24px rgba(233,69,96,0.45);
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+      letter-spacing: 0.5px;
+    }
+    .btn:active {
+      transform: scale(0.95);
+      box-shadow: 0 2px 10px rgba(233,69,96,0.3);
+    }
+
+    /* ── Game Screen ── */
+    #game-screen {
+      padding: 0;
+      justify-content: flex-end;
+    }
+
+    /* ── End Screen overlay (image shows through from #app) ── */
+    #end-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.60);
+    }
+    #end-screen > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Bottom-half panel that holds all gameplay controls */
+    #game-lower {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      display: flex;
+      flex-direction: column;
+      background: rgba(0, 0, 0, 0.68);
+      backdrop-filter: blur(2px);
+    }
+
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      padding: 10px 16px 6px;
+      flex-shrink: 0;
+    }
+    #round-display {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.3px;
+    }
+    #score-display {
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: #ffd700;
+      letter-spacing: -0.5px;
+    }
+
+    /* ── Timer Bar ── */
+    #timer-bar {
+      width: 100%;
+      height: 5px;
+      background: rgba(255,255,255,0.1);
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    #timer-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #e94560, #ffd700);
+      transform-origin: left;
+    }
+
+    /* ── Flash Area ── */
+    #flash-area {
+      flex: 0 0 22%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+    #flash-word {
+      font-size: clamp(1.6rem, 6vw, 2.4rem);
+      font-weight: 900;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      opacity: 0;
+      transform: scale(0.75) translateY(8px);
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      text-shadow: 0 0 30px rgba(255,255,255,0.25);
+      pointer-events: none;
+    }
+    #flash-word.show {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    #flash-word.state-correct {
+      color: #4ade80;
+      text-shadow: 0 0 30px rgba(74,222,128,0.4);
+    }
+    #flash-word.state-wrong {
+      color: #f87171;
+      text-shadow: 0 0 30px rgba(248,113,113,0.4);
+    }
+
+    /* ── Grid ── */
+    #grid-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: stretch;
+      width: 100%;
+      padding: 4px 12px 12px;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 8px;
+      width: 100%;
+      min-height: 0;
+    }
+    .food-cell {
+      min-height: 0;
+      background: rgba(255,255,255,0.09);
+      border: 2px solid rgba(255,255,255,0.13);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      cursor: pointer;
+      overflow: hidden;
+      transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+      padding: 4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .food-cell:active:not(.disabled) {
+      transform: scale(0.91);
+    }
+    .food-cell .emoji {
+      font-size: clamp(1.6rem, 8vw, 2.6rem);
+      line-height: 1;
+    }
+    .food-cell .label {
+      font-size: clamp(0.42rem, 1.8vw, 0.6rem);
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+    .food-cell.state-correct {
+      background: rgba(74,222,128,0.18);
+      border-color: #4ade80;
+      transform: scale(1.06);
+    }
+    .food-cell.state-wrong {
+      background: rgba(248,113,113,0.18);
+      border-color: #f87171;
+      transform: scale(0.94);
+    }
+    .food-cell.disabled {
+      pointer-events: none;
+    }
+
+    /* ── End Screen ── */
+    #end-screen h2 {
+      font-size: 1.8rem;
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+    #final-score {
+      font-size: 5rem;
+      font-weight: 900;
+      color: #ffd700;
+      line-height: 1;
+      margin: 16px 0 4px;
+    }
+    #final-out-of {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 12px;
+    }
+    #accuracy {
+      font-size: 1rem;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 40px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Start Screen ── -->
+  <div id="start-screen" class="screen">
+    <h1>Mr. Krabs' Kash Katch</h1>
+    <p class="subtitle">A food name flashes on screen.<br>Tap the matching food — fast!</p>
+    <button class="btn" id="start-btn">Play</button>
+  </div>
+
+  <!-- ── Game Screen ── -->
+  <div id="game-screen" class="screen hidden">
+    <div id="game-lower">
+      <div id="hud">
+        <span id="round-display">Round 1 / 10</span>
+        <span id="score-display">0</span>
+      </div>
+      <div id="timer-bar"><div id="timer-fill"></div></div>
+      <div id="flash-area"><div id="flash-word"></div></div>
+      <div id="grid-wrap"><div id="grid"></div></div>
+    </div>
+  </div>
+
+  <!-- ── End Screen ── -->
+  <div id="end-screen" class="screen hidden">
+    <h2>Game Over!</h2>
+    <div id="final-score">0</div>
+    <div id="final-out-of">out of 10,000</div>
+    <div id="accuracy"></div>
+    <button class="btn" id="play-again-btn">Play Again</button>
+  </div>
+
+</div>
+<script>
+  const FOODS = [
+    { emoji: '🍕', name: 'PIZZA'     },
+    { emoji: '🍔', name: 'BURGER'    },
+    { emoji: '🌮', name: 'TACO'      },
+    { emoji: '🍣', name: 'SUSHI'     },
+    { emoji: '🍩', name: 'DONUT'     },
+    { emoji: '🍦', name: 'ICE CREAM' },
+    { emoji: '🌭', name: 'HOT DOG'   },
+    { emoji: '🍟', name: 'FRIES'     },
+    { emoji: '🥪', name: 'SANDWICH'  },
+  ];
+
+  const TOTAL_ROUNDS   = 10;
+  const FLASH_MS       = 1500;  // word visible duration
+  const ROUND_MS       = 3500;  // total time to respond
+  const MAX_PTS        = 1000;
+  const MIN_PTS        = 100;
+  const FEEDBACK_MS    = 1000;  // pause after tap before next round
+
+  let score = 0;
+  let round = 0;
+  let correctCount = 0;
+  let currentFood = null;
+  let responded = false;
+  let roundTimeout = null;
+  let flashTimeout = null;
+  let timerAnim = null;
+  let timerStart = 0;
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  function startGame() {
+    score = 0;
+    round = 0;
+    correctCount = 0;
+    document.getElementById('app').classList.remove('lose-bg');
+    showScreen('game-screen');
+    nextRound();
+  }
+
+  function nextRound() {
+    if (round >= TOTAL_ROUNDS) { endGame(); return; }
+
+    round++;
+    responded = false;
+    clearTimeout(roundTimeout);
+    clearTimeout(flashTimeout);
+
+    const foods = shuffle(FOODS);
+    currentFood = foods[Math.floor(Math.random() * foods.length)];
+
+    buildGrid(foods);
+    updateHUD();
+    animateTimerBar();
+
+    const flashEl = document.getElementById('flash-word');
+    flashEl.textContent = currentFood.name;
+    flashEl.className = 'show';
+
+    timerStart = performance.now();
+
+    flashTimeout = setTimeout(() => {
+      if (!responded) flashEl.classList.remove('show');
+    }, FLASH_MS);
+
+    roundTimeout = setTimeout(() => {
+      if (!responded) onTimeout();
+    }, ROUND_MS);
+  }
+
+  function animateTimerBar() {
+    const fill = document.getElementById('timer-fill');
+    fill.style.transition = 'none';
+    fill.style.width = '100%';
+    // Force reflow so the reset registers before we start the animation
+    void fill.offsetWidth;
+    fill.style.transition = `width ${ROUND_MS}ms linear`;
+    fill.style.width = '0%';
+  }
+
+  function buildGrid(foods) {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    foods.forEach(food => {
+      const cell = document.createElement('div');
+      cell.className = 'food-cell';
+      cell.dataset.name = food.name;
+      cell.innerHTML = `<span class="emoji">${food.emoji}</span><span class="label">${food.name}</span>`;
+      cell.addEventListener('click', () => onTap(food, cell));
+      grid.appendChild(cell);
+    });
+  }
+
+  function onTap(food, cell) {
+    if (responded) return;
+    responded = true;
+    clearTimeout(roundTimeout);
+    clearTimeout(flashTimeout);
+
+    const elapsed = performance.now() - timerStart;
+    const isCorrect = food.name === currentFood.name;
+
+    disableGrid();
+
+    const flashEl = document.getElementById('flash-word');
+    flashEl.classList.remove('show');
+
+    if (isCorrect) {
+      const pts = Math.round(Math.max(MIN_PTS, MAX_PTS - (elapsed / ROUND_MS) * (MAX_PTS - MIN_PTS)));
+      score += pts;
+      correctCount++;
+      cell.classList.add('state-correct');
+      showFeedback(`+${pts}`, 'state-correct');
+      vibrate(40);
+      const app = document.getElementById('app');
+      app.classList.add('success-bg');
+      setTimeout(() => app.classList.remove('success-bg'), 500);
+    } else {
+      cell.classList.add('state-wrong');
+      highlightCorrect();
+      showFeedback('✗', 'state-wrong');
+      vibrate([60, 30, 60]);
+    }
+
+    updateHUD();
+    setTimeout(nextRound, FEEDBACK_MS);
+  }
+
+  function onTimeout() {
+    responded = true;
+    clearTimeout(flashTimeout);
+    disableGrid();
+    highlightCorrect();
+    showFeedback('TOO SLOW', 'state-wrong');
+    vibrate([60, 30, 60]);
+    const app = document.getElementById('app');
+    app.classList.add('fail-bg');
+    setTimeout(() => app.classList.remove('fail-bg'), 500);
+    setTimeout(nextRound, FEEDBACK_MS);
+  }
+
+  function disableGrid() {
+    document.querySelectorAll('.food-cell').forEach(c => c.classList.add('disabled'));
+  }
+
+  function highlightCorrect() {
+    document.querySelectorAll('.food-cell').forEach(c => {
+      if (c.dataset.name === currentFood.name) c.classList.add('state-correct');
+    });
+  }
+
+  function showFeedback(text, stateClass) {
+    const flashEl = document.getElementById('flash-word');
+    flashEl.textContent = text;
+    flashEl.className = `show ${stateClass}`;
+  }
+
+  function updateHUD() {
+    document.getElementById('round-display').textContent = `Round ${round} / ${TOTAL_ROUNDS}`;
+    document.getElementById('score-display').textContent = score.toLocaleString();
+  }
+
+  function endGame() {
+    const pct = Math.round((correctCount / TOTAL_ROUNDS) * 100);
+    document.getElementById('final-score').textContent = score.toLocaleString();
+    document.getElementById('accuracy').textContent = `${correctCount} / ${TOTAL_ROUNDS} correct  ·  ${pct}%`;
+    document.getElementById('app').classList.add('lose-bg');
+    showScreen('end-screen');
+  }
+
+  function vibrate(pattern) {
+    try { navigator.vibrate?.(pattern); } catch (_) {}
+  }
+
+  document.getElementById('start-btn').addEventListener('click', startGame);
+  document.getElementById('play-again-btn').addEventListener('click', startGame);
+</script>
+</body>
+</html>
